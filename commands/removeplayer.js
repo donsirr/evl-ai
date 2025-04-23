@@ -91,7 +91,7 @@ module.exports = {
     let teamRole;
     try {
       if (teamName.startsWith('<@&')) {
-        const roleId = teamName.replace(/[<@&>]/g, '');
+        const roleId = teamName.replace(/[<@&>]/g, ''); // Extract role ID from the mention
         teamRole = interaction.guild.roles.cache.get(roleId);
       } else {
         teamRole = interaction.guild.roles.cache.find(role => role.name.toLowerCase() === teamName.toLowerCase());

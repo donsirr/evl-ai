@@ -151,6 +151,8 @@ module.exports = {
       new ButtonBuilder().setCustomId('decline_addplayer').setLabel('Decline').setStyle(ButtonStyle.Danger)
     );
 
+    const confirmationMessages = []; // To store individual confirmation messages
+
     for (const player of playersToInvite) {
       try {
         // Set an invitation in the in-memory "database"
@@ -161,10 +163,8 @@ module.exports = {
           components: [row]
         });
 
-        const confirmationMessage = await interaction.reply({
-          content: `Invitation sent to ${player.tag}.`,
-          flags: MessageFlags.Ephemeral
-        });
+        // Store confirmation message
+        confirmationMessages.push(`${player.tag}: Invitation sent.`);
 
         const collector = dm.createMessageComponentCollector();
 
@@ -210,5 +210,11 @@ module.exports = {
         });
       }
     }
+
+    // Send all confirmation messages at once
+    await interaction.reply({
+      content: confirmationMessages.join('\n'),
+      flags: MessageFlags.Ephemeral
+    });
   }
 };
