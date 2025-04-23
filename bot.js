@@ -1,4 +1,5 @@
 // bot.js
+require('./registerCommands')(); // Auto-register slash commands on boot
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const dotenv = require('dotenv');
 const commandHandler = require('./handlers/commandHandler');
