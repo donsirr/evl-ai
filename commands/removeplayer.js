@@ -63,108 +63,63 @@ module.exports = {
 
   async execute(interaction) {
     const teamName = interaction.options.getString('team_name');
-    const players = [
-      interaction.options.getUser('player1'),
-      interaction.options.getUser('player2'),
-      interaction.options.getUser('player3'),
-      interaction.options.getUser('player4'),
-      interaction.options.getUser('player5'),
-      interaction.options.getUser('player6'),
-      interaction.options.getUser('player7'),
-      interaction.options.getUser('player8'),
-      interaction.options.getUser('player9'),
-      interaction.options.getUser('player10'),
-      interaction.options.getUser('player11'),
-      interaction.options.getUser('player12'),
-    ].filter(Boolean); // Remove null values
+    const players = Array.from({ length: 12 }, (_, i) =>
+      interaction.options.getUser(`player${i + 1}`)
+    ).filter(Boolean);
 
     const member = await interaction.guild.members.fetch(interaction.user.id);
     const captainRole = interaction.guild.roles.cache.find(role => role.name === 'Captain');
-
     if (!captainRole || member.roles.highest.position < captainRole.position) {
-      return interaction.reply({
-        content: 'You must be a Captain or higher to use this command.',
-        flags: MessageFlags.Ephemeral
-      });
+      return interaction.reply({ content: 'You must be a Captain or higher to use this command.', ephemeral: true });
     }
 
     let teamRole;
-    try {
-      if (teamName.startsWith('<@&')) {
-        const roleId = teamName.replace(/[<@&>]/g, ''); // Extract role ID from the mention
-        teamRole = interaction.guild.roles.cache.get(roleId);
-      } else {
-        teamRole = interaction.guild.roles.cache.find(role => role.name.toLowerCase() === teamName.toLowerCase());
-      }
-
-      if (!teamRole) {
-        return interaction.reply({
-          content: `Team role "${teamName}" not found.`,
-          flags: MessageFlags.Ephemeral
-        });
-      }
-    } catch (error) {
-      return interaction.reply({
-        content: 'Error fetching team role.',
-        flags: MessageFlags.Ephemeral
-      });
+    if (teamName.startsWith('<@&')) {
+      const roleId = teamName.replace(/[<@&>]/g, '');
+      teamRole = interaction.guild.roles.cache.get(roleId);
+    } else {
+      teamRole = interaction.guild.roles.cache.find(role => role.name.toLowerCase() === teamName.toLowerCase());
     }
 
-    const invalidPlayers = [];
-    const playersToRemove = [];
+    if (!teamRole) {
+      return interaction.reply({ content: `Team role "${teamName}" not found.`, ephemeral: true });
+    }
+
+    const removed = [], skipped = [];
 
     for (const player of players) {
       const guildMember = await interaction.guild.members.fetch(player.id);
-      const playerRole = guildMember.roles.cache.some(role => role.name === teamRole.name);
+      const hasRole = guildMember.roles.cache.has(teamRole.id);
 
-      if (!playerRole) {
-        invalidPlayers.push(player.tag);
-      } else {
-        playersToRemove.push(player);
+      if (!hasRole) {
+        skipped.push(player.tag);
+        continue;
+      }
+
+      await guildMember.roles.remove(teamRole);
+      removed.push(player.tag);
+      await interaction.channel.send(`${player} has been removed from **${teamRole.name}**.`);
+
+      const logChannel = interaction.guild.channels.cache.find(ch => ch.name === 'server-logs');
+      if (logChannel) {
+        const logEmbed = new EmbedBuilder()
+          .setTitle('Player Removed')
+          .addFields(
+            { name: 'Player', value: `<@${player.id}>`, inline: true },
+            { name: 'Team', value: teamRole.name, inline: true },
+            { name: 'Removed By', value: interaction.user.tag, inline: true }
+          )
+          .setColor('Red')
+          .setTimestamp();
+        logChannel.send({ embeds: [logEmbed] });
       }
     }
 
-    if (invalidPlayers.length > 0) {
-      return interaction.reply({
-        content: `The following players are not in the team: ${invalidPlayers.join(', ')}.`,
-        flags: MessageFlags.Ephemeral
-      });
-    }
+    const reply = [
+      removed.length ? `✅ Removed: ${removed.join(', ')}` : null,
+      skipped.length ? `⚠️ Skipped (not in team): ${skipped.join(', ')}` : null
+    ].filter(Boolean).join('\n');
 
-    // Remove players and send notifications
-    for (const player of playersToRemove) {
-      try {
-        const guildMember = await interaction.guild.members.fetch(player.id);
-        await guildMember.roles.remove(teamRole);
-
-        await interaction.channel.send(`${player} has been removed from **${teamRole.name}**.`);
-
-        // Log the action
-        const logChannel = interaction.guild.channels.cache.find(ch => ch.name === 'server-logs');
-        if (logChannel) {
-          const logEmbed = new EmbedBuilder()
-            .setTitle('Player Removed')
-            .addFields(
-              { name: 'Player', value: `<@${player.id}>`, inline: true },
-              { name: 'Team', value: teamRole.name, inline: true },
-              { name: 'Removed By', value: interaction.user.tag, inline: true }
-            )
-            .setColor('Red')
-            .setTimestamp();
-          logChannel.send({ embeds: [logEmbed] });
-        }
-      } catch (error) {
-        console.error(error);
-        await interaction.reply({
-          content: `Failed to remove ${player.tag}.`,
-          flags: MessageFlags.Ephemeral
-        });
-      }
-    }
-
-    return interaction.reply({
-      content: `Successfully removed ${playersToRemove.map(player => player.tag).join(', ')} from **${teamRole.name}**.`,
-      flags: MessageFlags.Ephemeral
-    });
+    await interaction.reply({ content: reply, ephemeral: true });
   }
 };
